@@ -1,0 +1,27 @@
+# Deliberately INVALID: 1536Mi is not a whole multiple of a 1Gi page.
+# Used only for `oc apply --dry-run=server` to surface the admission rule on camera.
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: badhp
+  namespace: vm-tuning-lab
+spec:
+  runStrategy: Halted
+  template:
+    spec:
+      domain:
+        resources:
+          requests:
+            memory: 1536Mi          # not a multiple of 1Gi -> rejected
+        memory:
+          hugepages:
+            pageSize: "1Gi"
+        devices:
+          disks:
+            - name: root
+              disk:
+                bus: virtio
+      volumes:
+        - name: root
+          containerDisk:
+            image: quay.io/containerdisks/fedora:41

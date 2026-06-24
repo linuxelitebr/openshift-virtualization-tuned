@@ -1,0 +1,27 @@
+# Deliberately INVALID: 512Mi is smaller than a single 1Gi page.
+# Used only for `oc apply --dry-run=server` to surface the admission rule on camera.
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: badhp
+  namespace: vm-tuning-lab
+spec:
+  runStrategy: Halted
+  template:
+    spec:
+      domain:
+        resources:
+          requests:
+            memory: 512Mi           # smaller than one 1Gi page -> rejected
+        memory:
+          hugepages:
+            pageSize: "1Gi"
+        devices:
+          disks:
+            - name: root
+              disk:
+                bus: virtio
+      volumes:
+        - name: root
+          containerDisk:
+            image: quay.io/containerdisks/fedora:41

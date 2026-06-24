@@ -1,0 +1,30 @@
+# Filler pods for the Part 3A cost demo: each reserves 4 GiB of ordinary memory.
+# Scale up until extra replicas go Pending with "Insufficient memory" while the
+# reserved hugepage pool sits idle beside them. Add a nodeSelector to target the
+# node that holds the pool. See the README ("The bill").
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: filler
+  namespace: vm-tuning-lab
+  labels:
+    app: filler
+spec:
+  replicas: 12
+  selector:
+    matchLabels:
+      app: filler
+  template:
+    metadata:
+      labels:
+        app: filler
+    spec:
+      terminationGracePeriodSeconds: 0
+      containers:
+        - name: filler
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              memory: 4Gi
+            limits:
+              memory: 4Gi

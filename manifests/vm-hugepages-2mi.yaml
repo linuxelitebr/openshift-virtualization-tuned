@@ -1,0 +1,40 @@
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: vm-hugepages-2mi
+  namespace: vm-tuning-lab
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      labels:
+        kubevirt.io/domain: vm-hugepages-2mi
+    spec:
+      # For a fair comparison, pin both VMs to the SAME node that has the
+      # hugepage pool reserved. Uncomment and set your node:
+      # nodeSelector:
+      #   kubernetes.io/hostname: <your-node>
+      domain:
+        cpu:
+          cores: 4
+        memory:
+          guest: 6Gi
+          hugepages:
+            pageSize: 2Mi
+        devices:
+          disks:
+          - disk:
+              bus: virtio
+            name: rootdisk
+          - disk:
+              bus: virtio
+            name: cloudinit
+      volumes:
+      - containerDisk:
+          image: quay.io/containerdisks/fedora:41
+        name: rootdisk
+      - cloudInitNoCloud:
+          # Installs qemu-guest-agent + gcc, drops bench/pointer-chase.c at
+          # /root/pc.c (base64) and compiles it to /usr/local/bin/pc at boot.
+          userDataBase64: I2Nsb3VkLWNvbmZpZwpwYXNzd29yZDogZmVkb3JhCmNocGFzc3dkOiB7IGV4cGlyZTogZmFsc2UgfQpwYWNrYWdlczogWyBxZW11LWd1ZXN0LWFnZW50LCBnY2MgXQp3cml0ZV9maWxlczoKICAtIHBhdGg6IC9yb290L3BjLmMKICAgIGVuY29kaW5nOiBiNjQKICAgIGNvbnRlbnQ6IEkybHVZMngxWkdVZ1BITjBaR2x2TG1nK0NpTnBibU5zZFdSbElEeHpkR1JzYVdJdWFENEtJMmx1WTJ4MVpHVWdQSFJwYldVdWFENEtJMmx1WTJ4MVpHVWdQSE4wWkdsdWRDNW9QZ3B6ZEdGMGFXTWdkV2x1ZERZMFgzUWdjbTVuUFRnNE1UY3lOalExTkRZek16STFNalV5VlV4TU93cHpkR0YwYVdNZ2FXNXNhVzVsSUhWcGJuUTJORjkwSUhoektDbDdJSEp1WjE0OWNtNW5QRHd4TXpzZ2NtNW5YajF5Ym1jK1BqYzdJSEp1WjE0OWNtNW5QRHd4TnpzZ2NtVjBkWEp1SUhKdVp6c2dmUXBwYm5RZ2JXRnBiaWgyYjJsa0tYc0tJQ0J6YVhwbFgzUWdUaUE5SURVeE1sVk1LakV3TWpRcU1UQXlORHNnSUNBZ0lDQWdJQ0FnTHlvZ05URXlUU0FxSURoQ0lEMGdOQ0JIYVVJZ2QyOXlhMmx1WnlCelpYUWdLaThLSUNCemFYcGxYM1FnYVhSbGNuTWdQU0F5TlRCVlRDb3hNREF3S2pFd01EQTdJQ0FnSUNBZ0x5b2dNalV3VFNCa1pYQmxibVJsYm5RZ1kyaGhjMlZ6SUNvdkNpQWdjMmw2WlY5MElDcGhJRDBnYldGc2JHOWpLRTRxYzJsNlpXOW1LSE5wZW1WZmRDa3BPd29nSUdsbUtDRmhLWHNnY0hKcGJuUm1LQ0poYkd4dll5Qm1ZV2xzWEc0aUtUc2djbVYwZFhKdUlERTdJSDBLSUNCbWIzSW9jMmw2WlY5MElHazlNRHRwUEU0N2FTc3JLU0JoVzJsZFBXazdDaUFnWm05eUtITnBlbVZmZENCcFBVNHRNVHRwUGpBN2FTMHRLWHNnYzJsNlpWOTBJR285ZUhNb0tTVnBPeUJ6YVhwbFgzUWdkRDFoVzJsZE95QmhXMmxkUFdGYmFsMDdJR0ZiYWwwOWREc2dmU0F2S2lCVFlYUjBiMnh2SUhOcGJtZHNaU0JqZVdOc1pTQXFMd29nSUhOcGVtVmZkQ0JwWkhnOU1Ec0tJQ0J6ZEhKMVkzUWdkR2x0WlhOd1pXTWdkREFzZERFN0lHTnNiMk5yWDJkbGRIUnBiV1VvUTB4UFEwdGZUVTlPVDFSUFRrbERMQ1owTUNrN0NpQWdabTl5S0hOcGVtVmZkQ0JwUFRBN2FUeHBkR1Z5Y3p0cEt5c3BJR2xrZUQxaFcybGtlRjA3Q2lBZ1kyeHZZMnRmWjJWMGRHbHRaU2hEVEU5RFMxOU5UMDVQVkU5T1NVTXNKblF4S1RzS0lDQjJiMnhoZEdsc1pTQnphWHBsWDNRZ2MybHVhejFwWkhnN0lDaDJiMmxrS1hOcGJtczdDaUFnWkc5MVlteGxJSE5sWXowb2RERXVkSFpmYzJWakxYUXdMblIyWDNObFl5a3JLSFF4TG5SMlgyNXpaV010ZERBdWRIWmZibk5sWXlrdk1XVTVPd29nSUhCeWFXNTBaaWdpY0c5cGJuUmxjaTFqYUdGelpUb2dKUzR4WmlCSGFVSWdjMlYwTENBbGVuVWdZV05qWlhOelpYTXNJQ1V1TTJaeklEMCtJQ1V1TW1ZZ2JuTXZZV05qWlhOekxDQWxMakZtSUUwdFlXTmpMM05jYmlJc0NpQWdJQ0FnSUNBZ0lFNHFPQzR3THpFd056TTNOREU0TWpRdU1Dd2dhWFJsY25Nc0lITmxZeXdnYzJWakwybDBaWEp6S2pGbE9Td2dhWFJsY25NdmMyVmpMekZsTmlrN0NpQWdjbVYwZFhKdUlEQTdDbjBLCnJ1bmNtZDoKICAtIFsgc3lzdGVtY3RsLCBlbmFibGUsIC0tbm93LCBxZW11LWd1ZXN0LWFnZW50IF0KICAtIGJhc2ggLWMgImdjYyAtTzIgLW8gL3Vzci9sb2NhbC9iaW4vcGMgL3Jvb3QvcGMuYyAmJiBlY2hvIE9LID4gL3Jvb3QvcGMuZG9uZSIK
+        name: cloudinit
