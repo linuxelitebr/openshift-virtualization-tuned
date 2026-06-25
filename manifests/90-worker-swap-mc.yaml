@@ -1,0 +1,46 @@
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  name: 90-worker-swap
+  labels:
+    machineconfiguration.openshift.io/role: worker
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+        - path: /usr/local/bin/provision-swap.sh
+          mode: 493
+          overwrite: true
+          contents:
+            source: "data:text/plain;charset=utf-8;base64,IyEvYmluL2Jhc2gKIyBQcm92aXNpb24gYSBzd2FwZmlsZSBPTkxZIGlmIHRoZXJlIGlzIHJvb20sIGFuZCBORVZFUiBibG9jayB0aGUga3ViZWxldC4KIyBBIGZhaWxlZCBzd2FwIG11c3Qgbm90IHN0cmFuZCB0aGUgbm9kZSwgc28gdGhpcyBhbHdheXMgZXhpdHMgMDsgdGhlIHNpemUKIyBjaGVjayBpcyB0aGUgcmVhbCBzYWZldHkgbmV0LiBTaXplZCBzbWFsbCBvbiBwdXJwb3NlLgpTV0FQX01CPTgwMDAKTkVFRF9NQj0xMzAwMCAgICMgc3dhcCBzaXplICsgc2FmZXR5IG1hcmdpbgpBVkFJTD0kKGRmIC0tb3V0cHV0PWF2YWlsIC1tIC92YXIvdG1wIDI+L2Rldi9udWxsIHwgdGFpbCAtMSB8IHRyIC1kICcgJykKaWYgWyAteiAiJEFWQUlMIiBdIHx8IFsgIiRBVkFJTCIgLWx0ICIkTkVFRF9NQiIgXTsgdGhlbgogIGVjaG8gInN3YXAtcHJvdmlzaW9uOiBvbmx5ICR7QVZBSUw6LTB9TWlCIGZyZWUgaW4gL3Zhci90bXAsIG5lZWQgJHtORUVEX01CfU1pQjsgc2tpcHBpbmcgc3dhcCAobm9kZSBzdGF5cyB1cCkiCiAgZXhpdCAwCmZpCmlmIGZhbGxvY2F0ZSAtbCAiJHtTV0FQX01CfU0iIC92YXIvdG1wL3N3YXBmaWxlIFwKICAgJiYgY2htb2QgNjAwIC92YXIvdG1wL3N3YXBmaWxlIFwKICAgJiYgbWtzd2FwIC92YXIvdG1wL3N3YXBmaWxlIFwKICAgJiYgc3dhcG9uIC92YXIvdG1wL3N3YXBmaWxlOyB0aGVuCiAgZWNobyAic3dhcC1wcm92aXNpb246ICR7U1dBUF9NQn1NaUIgc3dhcCBhY3RpdmUiOyBmcmVlIC1oCmVsc2UKICBlY2hvICJzd2FwLXByb3Zpc2lvbjogc2V0dXAgZmFpbGVkLCBjbGVhbmluZyB1cCAobm9kZSBzdGF5cyB1cCkiOyBybSAtZiAvdmFyL3RtcC9zd2FwZmlsZQpmaQpleGl0IDAK"
+    systemd:
+      units:
+        - name: swap-provision.service
+          enabled: true
+          contents: |
+            [Unit]
+            Description=Provision and enable swap (size-checked, fail-safe)
+            ConditionFirstBoot=no
+            ConditionPathExists=!/var/tmp/swapfile
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/bin/provision-swap.sh
+
+            [Install]
+            RequiredBy=kubelet-dependencies.target
+        - name: cgroup-system-slice-config.service
+          enabled: true
+          contents: |
+            [Unit]
+            Description=Restrict swap for system slice (fail-safe)
+            ConditionFirstBoot=no
+
+            [Service]
+            Type=oneshot
+            ExecStart=/bin/sh -c "systemctl set-property --runtime system.slice MemorySwapMax=0 || true; exit 0"
+
+            [Install]
+            RequiredBy=kubelet-dependencies.target

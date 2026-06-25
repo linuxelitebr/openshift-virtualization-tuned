@@ -1,8 +1,10 @@
 # OpenShift Virtualization, Tuned: reproducible artifacts
 
-Artifacts behind **Part 3 (Hugepages and Memory)** of the *OpenShift Virtualization, Tuned*
-series on [Linux Elite](https://linuxelite.com.br). Reproduce both halves on your own
-cluster: the **bill** hugepages charge up front, and the **4.7x payoff** they buy.
+Artifacts behind the *OpenShift Virtualization, Tuned* series on
+[Linux Elite](https://linuxelite.com.br). Reproduce the results on your own cluster.
+
+- **Part 3 (Hugepages and Memory):** the **bill** hugepages charge up front, and the **4.7x payoff** they buy.
+- **Part 4 (Ballooning and Overcommit):** a fail-safe swapfile for memory overcommit, and a swap consistency check across nodes (jump to [Part 4](#part-4-fail-safe-swap-for-overcommit)).
 
 The benchmark is two identical Fedora VMs on one node, same vCPUs and guest size, differing
 only in `spec.domain.memory.hugepages`. Each compiles a ~30-line C pointer-chase at boot
@@ -35,7 +37,9 @@ manifests/vm-hugepages-2mi.yaml   6 GiB guest, 2 MiB hugepages
 manifests/vm-1536Mi-1Gi.yaml      invalid on purpose (not a multiple of the page size)
 manifests/vm-512Mi-1Gi.yaml       invalid on purpose (smaller than one page)
 manifests/filler-pods.yaml        4 GiB filler pods, to show the reserved pool's cost
+manifests/90-worker-swap-mc.yaml  Part 4: fail-safe swapfile MachineConfig (size-checked, never strands the node)
 tools/guest-exec.py               run a command inside a VM via the qemu-guest-agent
+tools/check-node-swap.sh          Part 4: report swap per node, flag any that differs from the majority
 ```
 
 Each VM manifest is self-contained: cloud-init installs `gcc` and compiles
@@ -131,6 +135,48 @@ $ cat /sys/kernel/mm/hugepages/hugepages-1048576kB/free_hugepages
 
 From the Kubernetes side, the launcher pod requests `hugepages-<size>` equal to the guest
 size, and the node's `allocatable.hugepages-<size>` shrinks by that while the VM runs.
+
+## Part 4: fail-safe swap for overcommit
+
+Memory overcommit leans on swap, and on OpenShift the wasp-agent grants it only to Burstable
+VM pods. But the swap has to exist on the node first, and that is where it bites. If you did
+not reserve a dedicated swap partition when the cluster was installed, the only option a
+running node offers is a swapfile on its existing disk, and the swapfile is provisioned by a
+systemd unit the kubelet depends on. Ask for a file bigger than the disk can hold and
+`fallocate` fails, the unit fails, and the node goes `NotReady` with no easy way back on
+hardware without a BMC. A 27 GiB file did exactly that to the fullest of three nodes once.
+
+`manifests/90-worker-swap-mc.yaml` is the fix: a MachineConfig that provisions an 8 GiB
+swapfile through a small script which **checks free space before it allocates and always
+exits clean**, so a skipped or failed swap degrades to "no swap on this node," never to
+"no node." It is sized small on purpose. The docs' ideal is a fast, dedicated device sized by
+
+```
+NODE_SWAP_SPACE = NODE_RAM x (memoryOvercommitPercentage / 100 - 1)
+```
+
+which on a 55 GiB node at 150% is ~27 GiB, an install-time decision a running node cannot
+take. On HyperShift this MachineConfig rides in a `ConfigMap` the NodePool references (the
+role label `worker` and ignition `3.2.0` are required, as for any ignition MC there); on
+self-managed OpenShift apply it to the worker pool directly. Either way it reboots the node.
+
+Because a swapfile depends on free disk, nodes can end up uneven: one gets swap, a fuller one
+skips it, and a Burstable VM that swaps and survives on one node will OOM on the swapless one.
+That heterogeneity is the opposite of the determinism you want. `tools/check-node-swap.sh`
+reads swap on every node and flags any that differs from the cluster majority:
+
+```console
+$ ./tools/check-node-swap.sh
+NODE       SWAP   STATUS
+worker-0   8 GiB   ok
+worker-1   8 GiB   ok
+worker-2   8 GiB   ok
+
+All 3 nodes report 8 GiB of swap. Consistent and deterministic.
+```
+
+It needs permission to run `oc debug node` on every node and exits non-zero on a mismatch, so
+it doubles as a CI gate. Set `CLI=kubectl` to use a different client.
 
 ## License
 
